@@ -93,5 +93,6 @@ func (l *Logger) build(level Level, msg ...any) {
 	if err != nil {
 		return
 	}
+	//nolint:errcheck
 	fmt.Fprint(l.writer, string(f))
 }
