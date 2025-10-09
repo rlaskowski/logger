@@ -12,7 +12,6 @@ func TestBuild(t *testing.T) {
 		buf    = bytes.Buffer{}
 		logger = NewLogger(&buf)
 	)
-
 	tests := []struct {
 		name,
 		want string
@@ -70,4 +69,18 @@ func Test_withLevel(t *testing.T) {
 
 	logger.Info(msg)
 	assert.Empty(t, buf.String())
+}
+
+func Benchmark_build(b *testing.B) {
+	var (
+		buf     = bytes.Buffer{}
+		logger  = NewLogger(&buf)
+		message = struct{ Message string }{Message: "simple message"}
+	)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		logger.Info(message)
+		logger.Debug(message)
+		logger.Warn(message)
+	}
 }
