@@ -3,6 +3,7 @@ package logger
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -231,5 +232,43 @@ func Benchmark_build(b *testing.B) {
 
 		logger.Debug(data)
 		buf.Reset()
+	}
+}
+
+func Benchmark_jsonEncoderMarshal(b *testing.B) {
+	logger := NewLogger(io.Discard)
+	builder := JsonBuilder{
+		{Name: "message", Value: "json encode benchmark"},
+		{Name: "count", Value: 123},
+		{Name: "payload", Value: JsonBuilder{
+			{Name: "nested", Value: "value"},
+			{Name: "flag", Value: true},
+			{Name: "timestamp", Value: time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)},
+		}},
+	}
+	enc := logger.newJsonEncoder()
+	defer logger.disposeJsonEncoder(enc)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		enc.buf.Reset()
+		if err := enc.marshal(builder); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func Benchmark_buildFiltered(b *testing.B) {
+	var (
+		buf    = bytes.Buffer{}
+		logger = NewLogger(&buf, WithLevel(Info))
+		data   = JsonBuilder{
+			{Name: "message", Value: "discarded debug entry"},
+		}
+	)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		logger.Debug(data)
 	}
 }
