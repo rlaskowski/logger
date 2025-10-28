@@ -45,7 +45,8 @@ type (
 	Level int
 
 	jsonEncoder struct {
-		buf bytes.Buffer
+		buf     bytes.Buffer
+		scratch []byte
 	}
 )
 
@@ -141,6 +142,7 @@ func (l *Logger) newJsonEncoder() *jsonEncoder {
 // Resets the encoder state and returns it to the pool.
 func (l *Logger) disposeJsonEncoder(enc *jsonEncoder) {
 	enc.buf.Reset()
+	enc.scratch = enc.scratch[:0]
 	l.jsonEncoderPool.Put(enc)
 }
 
@@ -154,19 +156,19 @@ func (e *jsonEncoder) marshal(jb JsonBuilder) error {
 		if attr.Name == "" {
 			return errJsonName
 		}
-		e.buf.Write(strconv.AppendQuote(e.buf.AvailableBuffer(), attr.Name))
+		e.writeQuotedString(attr.Name)
 		e.buf.WriteByte(':')
 		switch v := attr.Value.(type) {
 		case int:
-			e.buf.Write(strconv.AppendInt(e.buf.AvailableBuffer(), int64(v), 10))
+			e.writeInt(int64(v))
 		case float64:
-			e.buf.Write(strconv.AppendFloat(e.buf.AvailableBuffer(), v, 'f', -1, 64))
+			e.writeFloat(v)
 		case time.Time:
-			e.buf.Write(strconv.AppendQuote(e.buf.AvailableBuffer(), v.Format(time.RFC3339Nano)))
+			e.writeTime(v)
 		case bool:
-			e.buf.Write(strconv.AppendBool(e.buf.AvailableBuffer(), v))
+			e.writeBool(v)
 		case string:
-			e.buf.Write(strconv.AppendQuote(e.buf.AvailableBuffer(), v))
+			e.writeQuotedString(v)
 		case JsonBuilder:
 			if err := e.marshal(v); err != nil {
 				return err
@@ -177,4 +179,36 @@ func (e *jsonEncoder) marshal(jb JsonBuilder) error {
 	}
 	e.buf.WriteByte('}')
 	return nil
+}
+
+func (e *jsonEncoder) writeQuotedString(s string) {
+	e.scratch = e.scratch[:0]
+	e.scratch = strconv.AppendQuote(e.scratch, s)
+	e.buf.Write(e.scratch)
+}
+
+func (e *jsonEncoder) writeInt(i int64) {
+	e.scratch = e.scratch[:0]
+	e.scratch = strconv.AppendInt(e.scratch, i, 10)
+	e.buf.Write(e.scratch)
+}
+
+func (e *jsonEncoder) writeFloat(f float64) {
+	e.scratch = e.scratch[:0]
+	e.scratch = strconv.AppendFloat(e.scratch, f, 'f', -1, 64)
+	e.buf.Write(e.scratch)
+}
+
+func (e *jsonEncoder) writeBool(bv bool) {
+	e.scratch = e.scratch[:0]
+	e.scratch = strconv.AppendBool(e.scratch, bv)
+	e.buf.Write(e.scratch)
+}
+
+func (e *jsonEncoder) writeTime(t time.Time) {
+	e.scratch = e.scratch[:0]
+	e.scratch = append(e.scratch, '"')
+	e.scratch = t.AppendFormat(e.scratch, time.RFC3339Nano)
+	e.scratch = append(e.scratch, '"')
+	e.buf.Write(e.scratch)
 }
